@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>에세이 문장별 상세 분석기</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* 전체 페이지 스타일 */
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+            box-sizing: border-box;
+        }
+
+        /* 메인 컨테이너 스타일 */
+        .container {
+            width: 100%;
+            max-width: 900px; /* 테이블이 넓으므로 최대 너비 조정 */
+            margin: 20px auto;
+            background-color: #ffffff;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        /* 제목 스타일 */
+        h1 {
+            font-weight: 700;
+            margin-bottom: 15px;
+        }
+        
+        h2 {
+            text-align: left;
+            border-bottom: 2px solid #5b9bd5;
+            padding-bottom: 10px;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            color: #444;
+        }
+
+        p {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        /* 텍스트 입력창 스타일 */
+        textarea {
+            width: 100%;
+            height: 250px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            line-height: 1.6;
+            box-sizing: border-box;
+            margin-bottom: 20px;
+            resize: vertical;
+            font-family: 'Noto Sans KR', sans-serif;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #5b9bd5;
+            box-shadow: 0 0 8px rgba(91, 155, 213, 0.3);
+        }
+
+        /* 분석 버튼 스타일 */
+        button {
+            width: 100%;
+            padding: 15px;
+            background-color: #5b9bd5;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #4a8ac9;
+            transform: translateY(-2px);
+        }
+        
+        /* 결과 표시 영역 스타일 */
+        #results {
+            margin-top: 30px;
+            text-align: left;
+        }
+
+        .summary {
+            padding: 25px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            font-size: 22px;
+            font-weight: 500;
+            text-align: center;
+        }
+        
+        .summary .highlight {
+            color: #5b9bd5;
+            font-weight: 700;
+            font-size: 26px;
+        }
+        
+        /* 상세 분석 테이블 스타일 */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 12px 15px;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f2f7fb;
+            font-weight: 500;
+            color: #333;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        td:first-child {
+            text-align: center;
+            font-weight: bold;
+        }
+        .fail {
+            color: #c0392b;
+            font-weight: bold;
+        }
+        .pass {
+            color: #27ae60;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>✍️ 에세이 문장별 상세 분석기</h1>
+        <p>에세이를 입력하면 총 문장 개수와 각 문장별 단어 수를 상세히 분석해 드립니다.</p>
+        
+        <textarea id="essayInput" placeholder="이곳에 영어 에세이를 붙여넣으세요..."></textarea>
+        <button onclick="analyzeEssay()">상세 분석하기</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        // 분석에서 제외할 단어 목록 (상수)
+        const BE_VERBS = ['am', 'is', 'are', 'was', 'were', 'be', 'being', 'been'];
+        const PREPOSITIONS = [
+            'about', 'above', 'across', 'after', 'against', 'along', 'among', 'around', 'at', 
+            'before', 'behind', 'below', 'beneath', 'beside', 'between', 'by', 'down', 'during', 
+            'for', 'from', 'in', 'inside', 'into', 'like', 'near', 'of', 'off', 'on', 'onto', 
+            'out', 'outside', 'over', 'past', 'since', 'through', 'to', 'toward', 'under', 
+            'underneath', 'until', 'unto', 'up', 'upon', 'with', 'within', 'without'
+        ];
+
+        // 단어 수 계산 함수
+        function countWords(sentence) {
+            const words = sentence.toLowerCase().match(/\b\w+\b/g) || [];
+            let beCount = 0;
+            let prepCount = 0;
+            
+            words.forEach(word => {
+                if (BE_VERBS.includes(word)) {
+                    beCount++;
+                } else if (PREPOSITIONS.includes(word)) {
+                    prepCount++;
+                }
+            });
+
+            return {
+                counted: words.length - beCount - prepCount,
+                beVerbs: beCount,
+                prepositions: prepCount
+            };
+        }
+        
+        // 메인 분석 함수
+        function analyzeEssay() {
+            const text = document.getElementById('essayInput').value.trim();
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = ''; // 이전 결과 초기화
+
+            if (text.length === 0) {
+                resultsDiv.innerHTML = '<div class="summary">분석할 내용을 입력해주세요.</div>';
+                return;
+            }
+            
+            // 문장 분리
+            const sentences = text.match(/[^.!?]+[.!?]\s*/g) || [];
+            
+            // 1. 요약 결과 생성
+            const summaryHTML = `
+                <div class="summary">
+                    총 <span class="highlight">${sentences.length}</span>개의 문장이 분석되었습니다.
+                </div>
+            `;
+
+            // 2. 상세 분석 테이블 생성
+            let tableHTML = `
+                <h2>🔍 문장별 세부 분석</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th style="width: 8%;">번호</th>
+                            <th>문장 내용</th>
+                            <th style="width: 15%;">인정 단어 수</th>
+                            <th style="width: 12%;">be동사</th>
+                            <th style="width: 12%;">전치사</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            if (sentences.length === 0) {
+                tableHTML += '<tr><td colspan="5" style="text-align:center;">분석할 문장을 찾을 수 없습니다.</td></tr>';
+            } else {
+                sentences.forEach((sentence, index) => {
+                    const counts = countWords(sentence.trim());
+                    // 수행평가 조건인 10단어 이상 여부에 따라 색상 표시
+                    const wordCountStatus = counts.counted >= 10 ? 'pass' : 'fail';
+                    
+                    tableHTML += `
+                        <tr>
+                            <td>${index + 1}</td>
+                            <td>${sentence.trim()}</td>
+                            <td style="text-align:center;"><span class="${wordCountStatus}">${counts.counted}</span></td>
+                            <td style="text-align:center;">${counts.beVerbs}</td>
+                            <td style="text-align:center;">${counts.prepositions}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            tableHTML += '</tbody></table>';
+
+            // 3. 최종 결과를 화면에 표시
+            resultsDiv.innerHTML = summaryHTML + tableHTML;
+        }
+    </script>
+
+</body>
+</html>
